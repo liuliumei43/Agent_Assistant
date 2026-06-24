@@ -38,10 +38,10 @@ cd Agent_Assistant
 cp env.example .env
 ```
 
-支持两类配置：
+支持deepseek和anthropic配置：
 
 - `ANTHROPIC_API_KEY` + `ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic`
-- `DEEPSEEK_API_KEY` + `DEEPSEEK_BASE_URL=https://api.deepseek.com`
+
 
 启动 Core：
 
