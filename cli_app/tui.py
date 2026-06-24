@@ -5,6 +5,7 @@ import curses
 import locale
 import textwrap
 import time
+import unicodedata
 from collections import deque
 from pathlib import Path
 from typing import Any
@@ -16,12 +17,35 @@ from Agent_Assistant.cli_app.state import CliState
 MAX_LINES = 500
 
 
+def cell_width(text: str) -> int:
+    width = 0
+    for char in text:
+        if unicodedata.combining(char):
+            continue
+        width += 2 if unicodedata.east_asian_width(char) in {"F", "W"} else 1
+    return width
+
+
+def fit_cells(text: str, max_width: int) -> str:
+    used = 0
+    chars: list[str] = []
+    for char in text:
+        char_width = cell_width(char)
+        if used + char_width > max_width:
+            break
+        chars.append(char)
+        used += char_width
+    return "".join(chars)
+
+
 class TuiApp:
     def __init__(self, stdscr: curses.window, state: CliState) -> None:
         self.stdscr = stdscr
         self.state = state
         self.lines: deque[str] = deque(maxlen=MAX_LINES)
         self.input_text = ""
+        self.input_cursor = 0
+        self.input_offset = 0
         self.status = "就绪"
         self.running = False
         self.last_result: dict[str, Any] | None = None
@@ -30,6 +54,8 @@ class TuiApp:
         locale.setlocale(locale.LC_ALL, "")
         curses.curs_set(1)
         self.stdscr.keypad(True)
+        curses.mousemask(curses.BUTTON1_CLICKED)
+        curses.mouseinterval(0)
         self.stdscr.timeout(100)
         self._init_colors()
         self.add_line("Agent_Assistant TUI 已就绪。输入 /help 查看命令。")
@@ -45,6 +71,8 @@ class TuiApp:
             if key in {"\n", "\r", curses.KEY_ENTER}:
                 text = self.input_text.strip()
                 self.input_text = ""
+                self.input_cursor = 0
+                self.input_offset = 0
                 if not text:
                     continue
                 if text in {"/exit", "/quit", "/q"}:
@@ -55,12 +83,30 @@ class TuiApp:
                 self.run_turn(text)
                 continue
             if key in {curses.KEY_BACKSPACE, "\b", "\x7f"}:
-                self.input_text = self.input_text[:-1]
+                self.delete_before_cursor()
+                continue
+            if key == curses.KEY_DC:
+                self.delete_at_cursor()
+                continue
+            if key == curses.KEY_LEFT:
+                self.input_cursor = max(0, self.input_cursor - 1)
+                continue
+            if key == curses.KEY_RIGHT:
+                self.input_cursor = min(len(self.input_text), self.input_cursor + 1)
+                continue
+            if key == curses.KEY_HOME:
+                self.input_cursor = 0
+                continue
+            if key == curses.KEY_END:
+                self.input_cursor = len(self.input_text)
+                continue
+            if key == curses.KEY_MOUSE:
+                self.handle_mouse()
                 continue
             if key == curses.KEY_RESIZE:
                 continue
             if isinstance(key, str) and key.isprintable():
-                self.input_text += key
+                self.insert_text(key)
 
     def _init_colors(self) -> None:
         if not curses.has_colors():
@@ -133,10 +179,70 @@ class TuiApp:
     def _draw_footer(self, height: int, width: int) -> None:
         help_text = " 输入消息 - 回车发送 - /help 帮助 - /exit 退出 "
         self.stdscr.addnstr(height - 3, 1, help_text.ljust(width - 2), width - 2, self.color(3))
-        prompt = "> " + self.input_text
-        self.stdscr.addnstr(height - 2, 1, prompt.ljust(width - 2), width - 2)
-        cursor_x = min(width - 1, 3 + len(self.input_text))
+        input_width = max(1, width - 4)
+        self.sync_input_offset(input_width)
+        visible_input = fit_cells(self.input_text[self.input_offset :], input_width)
+        self.stdscr.addnstr(height - 2, 1, " " * (width - 2), width - 2)
+        self.stdscr.addnstr(height - 2, 1, "> " + visible_input, width - 2)
+        cursor_cells = cell_width(self.input_text[self.input_offset : self.input_cursor])
+        cursor_x = min(width - 2, 3 + cursor_cells)
         self.stdscr.move(height - 2, cursor_x)
+
+    def sync_input_offset(self, input_width: int) -> None:
+        self.input_cursor = max(0, min(self.input_cursor, len(self.input_text)))
+        self.input_offset = max(0, min(self.input_offset, self.input_cursor))
+        while self.input_offset > self.input_cursor:
+            self.input_offset -= 1
+        while cell_width(self.input_text[self.input_offset : self.input_cursor]) >= input_width:
+            self.input_offset += 1
+
+    def insert_text(self, text: str) -> None:
+        self.input_text = (
+            self.input_text[: self.input_cursor] + text + self.input_text[self.input_cursor :]
+        )
+        self.input_cursor += len(text)
+
+    def delete_before_cursor(self) -> None:
+        if self.input_cursor == 0:
+            return
+        self.input_text = (
+            self.input_text[: self.input_cursor - 1] + self.input_text[self.input_cursor :]
+        )
+        self.input_cursor -= 1
+        self.input_offset = min(self.input_offset, self.input_cursor)
+
+    def delete_at_cursor(self) -> None:
+        if self.input_cursor >= len(self.input_text):
+            return
+        self.input_text = (
+            self.input_text[: self.input_cursor] + self.input_text[self.input_cursor + 1 :]
+        )
+
+    def handle_mouse(self) -> None:
+        try:
+            _, x, y, _, button_state = curses.getmouse()
+        except curses.error:
+            return
+        height, width = self.stdscr.getmaxyx()
+        input_row = height - 2
+        if y != input_row or not button_state & curses.BUTTON1_CLICKED:
+            return
+        input_start = 3
+        input_width = max(1, width - 4)
+        self.sync_input_offset(input_width)
+        target_cells = max(0, min(input_width, x - input_start))
+        self.input_cursor = self.cursor_from_cells(target_cells)
+
+    def cursor_from_cells(self, target_cells: int) -> int:
+        cells = 0
+        for index, char in enumerate(self.input_text[self.input_offset :], start=self.input_offset):
+            char_width = max(1, cell_width(char))
+            if target_cells < cells + (char_width / 2):
+                return index
+            cells += char_width
+            if target_cells < cells:
+                return index + 1
+        return len(self.input_text)
 
     def handle_command(self, command: str) -> None:
         if command == "/help":
