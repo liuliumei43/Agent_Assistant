@@ -11,11 +11,11 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from Agent_Asistant.config import load_llm_config
-from Agent_Asistant.llm_clients.deepseek import DeepSeekClient
-from Agent_Asistant.runtime.context import ContextBudget, compact_messages, should_compact
-from Agent_Asistant.runtime.events import EventWriter
-from Agent_Asistant.tooling.tools import ToolRegistry, build_default_registry
+from Agent_Assistant.config import load_llm_config
+from Agent_Assistant.llm_clients.deepseek import DeepSeekClient
+from Agent_Assistant.runtime.context import ContextBudget, compact_messages, should_compact
+from Agent_Assistant.runtime.events import EventWriter
+from Agent_Assistant.tooling.tools import ToolRegistry, build_default_registry
 
 MAX_TOOL_RESULT_CHARS = 8_000
 
@@ -233,7 +233,7 @@ class AgentRunner:
             {
                 "role": "system",
                 "content": (
-                    "你是 Agent_Asistant，一个通用 AI 助手和本地编码 Agent Runtime。"
+                    "你是 Agent_Assistant，一个通用 AI 助手和本地编码 Agent Runtime。"
                     "普通知识问答请直接根据自身知识回答，不要检查工作区。"
                     "当用户提出代码、项目、文件或仓库相关任务时，再使用可用工具，"
                     "并且只描述从文件中确认过的工作区能力。"
@@ -346,7 +346,7 @@ class AgentRunner:
             {
                 "role": "system",
                 "content": (
-                    "你是 Agent_Asistant，一个通用 AI 助手和本地编码 Agent Runtime。"
+                    "你是 Agent_Assistant，一个通用 AI 助手和本地编码 Agent Runtime。"
                     "普通知识问答请直接根据自身知识回答，不要检查工作区。"
                     "当用户提出代码、项目、文件或仓库相关任务时，再使用可用工具，"
                     "并将所有修改限制在工作区内。"

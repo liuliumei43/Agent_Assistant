@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from Agent_Asistant.llm_clients.deepseek import DeepSeekClient
-from Agent_Asistant.runtime.events import EventWriter
+from Agent_Assistant.llm_clients.deepseek import DeepSeekClient
+from Agent_Assistant.runtime.events import EventWriter
 
 
 @dataclass(frozen=True)

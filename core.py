@@ -8,10 +8,10 @@ from typing import Any
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from Agent_Asistant.config import load_core_config
-from Agent_Asistant.rpc.protocol import AgentRunParams, PingParams, validate_params
-from Agent_Asistant.rpc.transport import JsonRpcServer, StreamingResult
-from Agent_Asistant.runtime.agent import AgentRunner
+from Agent_Assistant.config import load_core_config
+from Agent_Assistant.rpc.protocol import AgentRunParams, PingParams, validate_params
+from Agent_Assistant.rpc.transport import JsonRpcServer, StreamingResult
+from Agent_Assistant.runtime.agent import AgentRunner
 
 
 class MiniCore:
@@ -71,7 +71,7 @@ class MiniCore:
 
     async def run(self) -> None:
         addr = await self.server.start()
-        print(f"agent-asistant-core listening at {addr}")
+        print(f"agent-assistant-core listening at {addr}")
         await self.server.serve_forever()
 
 

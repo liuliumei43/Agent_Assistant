@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from Agent_Asistant.cli_app.client import run_agent, stream_agent
-from Agent_Asistant.cli_app.commands import handle_command
-from Agent_Asistant.cli_app.output import (
+from Agent_Assistant.cli_app.client import run_agent, stream_agent
+from Agent_Assistant.cli_app.commands import handle_command
+from Agent_Assistant.cli_app.output import (
     CYAN,
     RESET,
     YELLOW,
@@ -13,7 +13,7 @@ from Agent_Asistant.cli_app.output import (
     print_run_result,
     print_run_summary,
 )
-from Agent_Asistant.cli_app.state import CliState
+from Agent_Assistant.cli_app.state import CliState
 
 
 async def run_streaming_turn(line: str, state: CliState) -> dict[str, Any] | None:

@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from Agent_Asistant.cli_app.state import CliState
+from Agent_Assistant.cli_app.state import CliState
 
 RESET = "\033[0m"
 BOLD = "\033[1m"
@@ -93,7 +93,7 @@ def print_run_summary(data: dict[str, Any]) -> None:
 def print_banner(state: CliState) -> None:
     print()
     print(
-        f"{BOLD}Agent_Asistant{RESET}  "
+        f"{BOLD}Agent_Assistant{RESET}  "
         f"127.0.0.1  sess-{state.session_id}  {color('就绪', GREEN)}"
     )
     print(color(ASCII_LOGO, CYAN))

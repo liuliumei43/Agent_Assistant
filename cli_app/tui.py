@@ -9,9 +9,9 @@ from collections import deque
 from pathlib import Path
 from typing import Any
 
-from Agent_Asistant.cli_app.client import stream_agent
-from Agent_Asistant.cli_app.output import format_ms, usage_line
-from Agent_Asistant.cli_app.state import CliState
+from Agent_Assistant.cli_app.client import stream_agent
+from Agent_Assistant.cli_app.output import format_ms, usage_line
+from Agent_Assistant.cli_app.state import CliState
 
 MAX_LINES = 500
 
@@ -32,7 +32,7 @@ class TuiApp:
         self.stdscr.keypad(True)
         self.stdscr.timeout(100)
         self._init_colors()
-        self.add_line("Agent_Asistant TUI 已就绪。输入 /help 查看命令。")
+        self.add_line("Agent_Assistant TUI 已就绪。输入 /help 查看命令。")
 
         while True:
             self.render()
@@ -106,7 +106,7 @@ class TuiApp:
             return
 
         header = (
-            f" Agent_Asistant  127.0.0.1  sess-{self.state.session_id}  "
+            f" Agent_Assistant  127.0.0.1  sess-{self.state.session_id}  "
             f"{self.status} "
         )
         self.stdscr.addnstr(0, 0, header.ljust(width), width, self.color(5))
@@ -117,7 +117,7 @@ class TuiApp:
 
     def _draw_logo(self, width: int) -> None:
         logo = [
-            "    AGENT_ASISTANT",
+            "    AGENT_ASSISTANT",
             "    本地 Agent Runtime / JSON-RPC / 流式输出",
         ]
         for idx, line in enumerate(logo, start=1):

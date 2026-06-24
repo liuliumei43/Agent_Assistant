@@ -9,7 +9,7 @@ from typing import cast
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-main = cast(Callable[[], None], import_module("Agent_Asistant.cli_app.main").main)
+main = cast(Callable[[], None], import_module("Agent_Assistant.cli_app.main").main)
 
 
 if __name__ == "__main__":

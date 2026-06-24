@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from Agent_Asistant.cli_app.client import call_core
-from Agent_Asistant.cli_app.output import print_help, print_json, print_status
-from Agent_Asistant.cli_app.state import CliState
+from Agent_Assistant.cli_app.client import call_core
+from Agent_Assistant.cli_app.output import print_help, print_json, print_status
+from Agent_Assistant.cli_app.state import CliState
 
 
 def parse_on_off(value: str) -> bool | None:

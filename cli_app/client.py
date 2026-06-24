@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from Agent_Asistant.cli_app.state import CliState
-from Agent_Asistant.config import load_core_config
-from Agent_Asistant.rpc.transport import JsonRpcClient
+from Agent_Assistant.cli_app.state import CliState
+from Agent_Assistant.config import load_core_config
+from Agent_Assistant.rpc.transport import JsonRpcClient
 
 
 async def call_core(method: str, params: dict[str, Any]) -> Any:

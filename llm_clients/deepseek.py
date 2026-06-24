@@ -6,7 +6,7 @@ from typing import Any
 
 import httpx
 
-from Agent_Asistant.config import LlmConfig
+from Agent_Assistant.config import LlmConfig
 
 
 class DeepSeekClient:

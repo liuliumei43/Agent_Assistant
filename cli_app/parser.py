@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 
-from Agent_Asistant.cli_app.state import CliState
+from Agent_Assistant.cli_app.state import CliState
 
 
 def add_runtime_options(parser: argparse.ArgumentParser) -> None:
@@ -18,8 +18,8 @@ def add_runtime_options(parser: argparse.ArgumentParser) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="agent-asistant",
-        description="Agent_Asistant 本地 Agent Runtime 命令行",
+        prog="agent-assistant",
+        description="Agent_Assistant 本地 Agent Runtime 命令行",
     )
     sub = parser.add_subparsers(dest="command")
 

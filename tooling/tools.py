@@ -6,7 +6,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from Agent_Asistant.tooling.rag import LocalRagIndex
+from Agent_Assistant.tooling.rag import LocalRagIndex
 
 
 @dataclass
