@@ -120,17 +120,4 @@ uv run python cli.py run --no-rag --workspace . "列出项目模块"
 uv run python cli.py run --yes --workspace . "创建 notes/hello.md"
 ```
 
-## 技术亮点
 
-- CLI/Core 分离：客户端与常驻 Core 通过 JSON-RPC 2.0 over NDJSON 通信。
-- 协议治理：使用 Pydantic 做严格请求校验，并实现标准 JSON-RPC 错误码。
-- 真流式输出：Core 将 LLM delta 转为 NDJSON 事件，CLI/TUI 实时渲染。
-- 多接口适配：兼容 DeepSeek Chat Completions 与 Anthropic-style Messages API。
-- 工具安全：文件读写限制在 workspace 内，写操作需要显式审批或 `--yes`。
-- 本地 RAG：基于轻量 TF-IDF 的项目文档检索工具 `rag_search`。
-- 上下文工程：按预算触发摘要压缩，避免长上下文无限膨胀。
-- 可观测性：每次运行都会写入 `.runs/demo_*/events.jsonl`，记录 run、step、tool、permission、RAG 和 compaction 事件。
-
-## 简历表述
-
-设计并实现 Agent_Asistant，本地 Agent Runtime 演示系统。项目采用 CLI/Core 双进程架构，基于 JSON-RPC 2.0 over NDJSON 实现协议通信，支持 DeepSeek/Anthropic-compatible 模型调用、function calling 工具执行、workspace 沙盒、写文件审批、本地 RAG、上下文压缩、流式输出、TUI 交互界面与 JSONL 事件追踪。
