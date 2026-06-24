@@ -57,7 +57,7 @@ class DeepSeekClient:
                 },
                 json=payload,
             )
-            self._raise_for_status(response)
+            await self._raise_for_status(response)
             data = response.json()
             if not isinstance(data, dict):
                 raise RuntimeError("LLM API returned a non-object JSON response")
@@ -90,7 +90,7 @@ class DeepSeekClient:
                 },
                 json=payload,
             ) as response:
-                self._raise_for_status(response)
+                await self._raise_for_status(response)
                 async for line in response.aiter_lines():
                     if not line.startswith("data:"):
                         continue
@@ -164,7 +164,7 @@ class DeepSeekClient:
                 },
                 json=payload,
             )
-            self._raise_for_status(response)
+            await self._raise_for_status(response)
             data = response.json()
             if not isinstance(data, dict):
                 raise RuntimeError("Anthropic API returned a non-object JSON response")
@@ -191,7 +191,7 @@ class DeepSeekClient:
                 },
                 json={**payload, "stream": True},
             ) as response:
-                self._raise_for_status(response)
+                await self._raise_for_status(response)
                 async for line in response.aiter_lines():
                     if not line.startswith("data:"):
                         continue
@@ -278,10 +278,11 @@ class DeepSeekClient:
             payload["tools"] = anthropic_tools
         return payload
 
-    def _raise_for_status(self, response: httpx.Response) -> None:
+    async def _raise_for_status(self, response: httpx.Response) -> None:
         try:
             response.raise_for_status()
         except httpx.HTTPStatusError as exc:
+            await response.aread()
             body = response.text[:2_000]
             raise RuntimeError(
                 f"LLM HTTP {response.status_code} from {response.url}: {body}"
