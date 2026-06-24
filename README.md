@@ -1,6 +1,6 @@
-# Agent Asistant
+# Agent Assistant
 
-Agent_Asistant 是一个本地 Agent Runtime 演示项目，采用 CLI/Core 分离架构：
+Agent_Assistant 是一个本地 Agent Runtime 演示项目，采用 CLI/Core 分离架构：
 
 ```text
 CLI / TUI 客户端
@@ -18,7 +18,7 @@ CLI / TUI 客户端
 ## 项目结构
 
 ```text
-Agent_Asistant/
+Agent_Assistant/
 |-- cli.py                  # CLI 入口
 |-- core.py                 # Core 守护进程入口
 |-- config.py               # .env 与运行配置
@@ -34,7 +34,7 @@ Agent_Asistant/
 进入项目目录并准备 `.env`：
 
 ```bash
-cd Agent_Asistant
+cd Agent_Assistant
 cp env.example .env
 ```
 
@@ -119,5 +119,3 @@ uv run python cli.py run --no-rag --workspace . "列出项目模块"
 ```bash
 uv run python cli.py run --yes --workspace . "创建 notes/hello.md"
 ```
-
-
