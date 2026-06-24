@@ -21,6 +21,7 @@ from Agent_Assistant.rpc.protocol import (
 
 CommandHandler = Callable[[dict[str, Any]], Awaitable[Any]]
 MAX_FRAME_BYTES = 2 * 1024 * 1024
+CLIENT_DISCONNECTED_ERRORS = (ConnectionError, BrokenPipeError)
 
 
 @dataclass
@@ -65,9 +66,14 @@ class JsonRpcServer:
                 if not line:
                     return
                 await self.handle_line(line, writer)
+        except CLIENT_DISCONNECTED_ERRORS:
+            return
         finally:
             writer.close()
-            await writer.wait_closed()
+            try:
+                await writer.wait_closed()
+            except CLIENT_DISCONNECTED_ERRORS:
+                pass
 
     async def handle_line(self, line: bytes, writer: asyncio.StreamWriter) -> None:
         request_id: str | int | None = None
@@ -86,6 +92,8 @@ class JsonRpcServer:
                 return
             result_data = result.model_dump() if isinstance(result, BaseModel) else result
             await self.send(writer, JsonRpcSuccess(id=request.id, result=result_data))
+        except CLIENT_DISCONNECTED_ERRORS:
+            return
         except json.JSONDecodeError as exc:
             await self.send(writer, make_error(None, PARSE_ERROR, f"Parse error: {exc}"))
         except ValidationError as exc:
@@ -102,8 +110,11 @@ class JsonRpcServer:
             )
 
     async def send(self, writer: asyncio.StreamWriter, msg: BaseModel) -> None:
-        writer.write(msg.model_dump_json().encode("utf-8") + b"\n")
-        await writer.drain()
+        try:
+            writer.write(msg.model_dump_json().encode("utf-8") + b"\n")
+            await writer.drain()
+        except CLIENT_DISCONNECTED_ERRORS:
+            pass
 
 
 class JsonRpcClient:
