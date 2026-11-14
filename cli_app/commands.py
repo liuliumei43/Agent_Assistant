@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from uuid import uuid4
 
 from Agent_Assistant.cli_app.client import call_core
 from Agent_Assistant.cli_app.output import print_help, print_json, print_status
@@ -40,9 +41,13 @@ async def handle_command(line: str, state: CliState) -> bool:
     elif command == "/ping":
         result = await call_core("ping", {"message": "ping"})
         print_json(result)
+    elif command == "/new":
+        state.session_id = uuid4().hex[:12]
+        print(f"新会话: {state.session_id}")
     elif command == "/workspace":
         if value:
-            state.workspace = value
+            state.workspace = str(Path(value).expanduser().resolve())
+            state.session_id = uuid4().hex[:12]
         print(f"workspace: {Path(state.workspace).resolve()}")
     elif command == "/rag":
         state.enable_rag = set_bool_option("rag", value, state.enable_rag)

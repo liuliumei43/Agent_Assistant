@@ -32,6 +32,8 @@ async def run_streaming_turn(line: str, state: CliState) -> dict[str, Any] | Non
         elif event_type == "tool.started":
             print()
             print(f"{CYAN}工具{RESET} {event.get('tool_name', '')} 执行中...")
+        elif event_type == "tool.failed":
+            print(f"工具失败: {event.get('tool_name')} {event.get('preview')}")
         elif event_type == "tool.finished":
             print(f"{CYAN}工具{RESET} {event.get('tool_name', '')} 完成")
         elif event_type == "context.compacting":
@@ -67,7 +69,7 @@ async def interactive_loop(state: CliState) -> None:
                 result = await run_streaming_turn(line, state)
             else:
                 result = await run_agent(line, state)
-        except RuntimeError as exc:
+        except (RuntimeError, OSError) as exc:
             print(f"[error] {exc}")
             continue
         if result is None:

@@ -9,6 +9,7 @@ import unicodedata
 from collections import deque
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from Agent_Assistant.cli_app.client import stream_agent
 from Agent_Assistant.cli_app.output import format_ms, usage_line
@@ -49,6 +50,7 @@ class TuiApp:
         self.status = "就绪"
         self.running = False
         self.last_result: dict[str, Any] | None = None
+        self.view_offset = 0
 
     def run(self) -> None:
         locale.setlocale(locale.LC_ALL, "")
@@ -151,10 +153,7 @@ class TuiApp:
             self.stdscr.refresh()
             return
 
-        header = (
-            f" Agent_Assistant  127.0.0.1  sess-{self.state.session_id}  "
-            f"{self.status} "
-        )
+        header = f" Agent_Assistant  127.0.0.1  sess-{self.state.session_id}  {self.status} "
         self.stdscr.addnstr(0, 0, header.ljust(width), width, self.color(5))
         self._draw_logo(width)
         self._draw_messages(height, width)
@@ -172,7 +171,8 @@ class TuiApp:
     def _draw_messages(self, height: int, width: int) -> None:
         top = 4
         bottom = height - 4
-        visible = list(self.lines)[-(bottom - top) :]
+        end = len(self.lines) - self.view_offset
+        visible = list(self.lines)[max(0, end - (bottom - top)) : end]
         for row, line in enumerate(visible, start=top):
             self.stdscr.addnstr(row, 1, line, width - 2)
 
@@ -246,7 +246,10 @@ class TuiApp:
 
     def handle_command(self, command: str) -> None:
         if command == "/help":
-            self.add_line("命令: /help /status /verbose on|off /rag on|off /exit")
+            self.add_line("命令: /help /new /status /verbose on|off /rag on|off /exit")
+        elif command == "/new":
+            self.state.session_id = uuid4().hex[:12]
+            self.add_line(f"新会话: {self.state.session_id}")
         elif command == "/status":
             self.add_line(f"工作区: {Path(self.state.workspace).resolve()}")
             self.add_line(f"RAG: {'开启' if self.state.enable_rag else '关闭'}")
@@ -280,7 +283,8 @@ class TuiApp:
         started = time.monotonic()
         try:
             result = asyncio.run(self._run_stream(text))
-        except RuntimeError as exc:
+        except (RuntimeError, OSError) as exc:
+            self.running = False
             self.add_line(f"[error] {exc}")
             self.status = "error"
             return
@@ -293,13 +297,53 @@ class TuiApp:
                 f"{format_ms(result.get('elapsed_ms', elapsed_ms))}"
             )
             self.add_line(usage_line(result))
+            if result.get("error"):
+                self.add_line(f"失败: {result['error']}")
             self.add_line(f"事件日志 {result.get('events_path', '')}")
         self.status = "就绪"
         self.running = False
 
+    async def approve(self, event: dict[str, Any]) -> bool:
+        saved_lines = self.lines
+        self.lines = deque()
+        self.view_offset = 0
+        self.add_line(f"写入审批: {event['path']}")
+        for line in str(event["diff"]).splitlines():
+            self.add_line(line)
+        self.add_line("↑↓/PageUp/PageDown 滚动完整 diff；y 批准，n 拒绝")
+        self.status = "等待审批"
+        self.render()
+        self.stdscr.nodelay(True)
+        deadline = time.monotonic() + 290
+        try:
+            while time.monotonic() < deadline:
+                try:
+                    key = self.stdscr.get_wch()
+                except curses.error:
+                    await asyncio.sleep(0.05)
+                    continue
+                if key in {curses.KEY_UP, curses.KEY_PPAGE}:
+                    amount = 1 if key == curses.KEY_UP else 10
+                    self.view_offset = min(max(0, len(self.lines) - 1), self.view_offset + amount)
+                    self.render()
+                if key in {curses.KEY_DOWN, curses.KEY_NPAGE}:
+                    amount = 1 if key == curses.KEY_DOWN else 10
+                    self.view_offset = max(0, self.view_offset - amount)
+                    self.render()
+                if key in {"y", "Y"}:
+                    return True
+                if key in {"n", "N", "\n", "\r", 3, 4}:
+                    return False
+            return False
+        finally:
+            self.lines = saved_lines
+            self.view_offset = 0
+            self.stdscr.timeout(100)
+            self.status = "运行中"
+
     async def _run_stream(self, text: str) -> dict[str, Any] | None:
         final_result: dict[str, Any] | None = None
-        async for event in stream_agent(text, self.state):
+        async for event in stream_agent(text, self.state, self.approve):
             event_type = str(event.get("type", ""))
             if event_type == "run.started":
                 self.add_line(f"运行 {event.get('run_id', '')}")
@@ -309,6 +353,8 @@ class TuiApp:
                 self.append_text(str(event.get("text") or ""))
             elif event_type == "tool.started":
                 self.add_line(f"工具 {event.get('tool_name', '')} 执行中")
+            elif event_type == "tool.failed":
+                self.add_line(f"工具失败: {event.get('preview')}")
             elif event_type == "tool.finished":
                 self.add_line(f"工具 {event.get('tool_name', '')} 完成")
             elif event_type == "result":

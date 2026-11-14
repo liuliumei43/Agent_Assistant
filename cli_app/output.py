@@ -68,6 +68,9 @@ def print_run_result(data: dict[str, Any]) -> None:
     print(f"time   {format_ms(data.get('elapsed_ms'))}")
     print(usage_line(data))
     print(f"events {data.get('events_path', '')}")
+    print(f"session {data.get('session_id', '')}")
+    if data.get("error"):
+        print(f"错误: {data['error']}")
     result = str(data.get("result") or "").strip()
     if result:
         print()
@@ -87,20 +90,19 @@ def print_run_summary(data: dict[str, Any]) -> None:
     print(f"time   {format_ms(data.get('elapsed_ms'))}")
     print(usage_line(data))
     print(f"events {data.get('events_path', '')}")
+    print(f"session {data.get('session_id', '')}")
+    if data.get("error"):
+        print(f"错误: {data['error']}")
     print(color("已完成", GREEN) if status == "success" else color("失败", RED))
 
 
 def print_banner(state: CliState) -> None:
     print()
     print(
-        f"{BOLD}Agent_Assistant{RESET}  "
-        f"127.0.0.1  sess-{state.session_id}  {color('就绪', GREEN)}"
+        f"{BOLD}Agent_Assistant{RESET}  127.0.0.1  sess-{state.session_id}  {color('就绪', GREEN)}"
     )
     print(color(ASCII_LOGO, CYAN))
-    print(
-        f"{DIM}输入消息开始对话 · 已开启流式输出 · /help 查看命令 · "
-        f"Ctrl+C 或 /exit 退出{RESET}"
-    )
+    print(f"{DIM}输入消息开始对话 · 已开启流式输出 · /help 查看命令 · Ctrl+C 或 /exit 退出{RESET}")
     print()
     print(f"工作区 {Path(state.workspace).resolve()}")
     rag_status = "开启" if state.enable_rag else "关闭"
@@ -115,6 +117,7 @@ def print_help() -> None:
             [
                 "命令：",
                 "  /help                    显示帮助",
+                "  /new                     开始新会话（历史保留）",
                 "  /ping                    检查 Core 是否在线",
                 "  /workspace [path]        查看或切换工作区",
                 "  /rag on|off              开启或关闭本地 RAG 工具",
@@ -134,6 +137,7 @@ def print_help() -> None:
 
 def print_status(state: CliState) -> None:
     print(f"工作区: {Path(state.workspace).resolve()}")
+    print(f"session: {state.session_id}")
     print(f"max_steps: {state.max_steps}")
     print(f"写文件自动审批: {'开启' if state.auto_approve else '关闭'}")
     print(f"RAG: {'开启' if state.enable_rag else '关闭'}")

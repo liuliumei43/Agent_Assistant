@@ -1,14 +1,20 @@
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
+from uuid import uuid4
 
 from Agent_Assistant.cli_app.state import CliState
 
 
 def add_runtime_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--workspace", default=".")
+    parser.add_argument("--session", help="恢复指定会话 ID")
+    parser.add_argument("--skill", choices=["repo-review"])
     parser.add_argument("--max-steps", type=int, default=8)
-    parser.add_argument("--yes", action="store_true", help="自动批准 write_file 写文件请求")
+    parser.add_argument(
+        "--yes", action="store_true", help="自动批准 write_file 和 apply_patch 写入请求"
+    )
     parser.add_argument("--no-rag", action="store_true", help="禁用 rag_search 本地检索工具")
     parser.add_argument("--context-max-chars", type=int, default=24_000)
     parser.add_argument("--verbose", action="store_true", help="允许模型输出更详细的回答")
@@ -40,7 +46,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def build_state(args: argparse.Namespace) -> CliState:
     return CliState(
-        workspace=str(args.workspace),
+        workspace=str(Path(args.workspace).expanduser().resolve()),
         max_steps=int(args.max_steps),
         auto_approve=bool(args.yes),
         enable_rag=not bool(args.no_rag),
@@ -48,4 +54,6 @@ def build_state(args: argparse.Namespace) -> CliState:
         verbose=bool(args.verbose),
         raw_json=bool(args.json),
         stream=not bool(args.no_stream),
+        session_id=args.session or uuid4().hex[:12],
+        skill=args.skill,
     )

@@ -1,6 +1,6 @@
 [project]
 name = "agent-assistant"
-version = "0.1.0"
+version = "0.2.0"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "httpx>=0.28.1",
@@ -12,7 +12,29 @@ dependencies = [
 dev = [
     "mypy>=1.10",
     "ruff>=0.4",
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
 ]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project.scripts]
+agent-assistant = "Agent_Assistant.cli_app.main:main"
+agent-assistant-core = "Agent_Assistant.core:main"
+
+[tool.setuptools]
+packages = ["Agent_Assistant", "Agent_Assistant.cli_app", "Agent_Assistant.rpc", "Agent_Assistant.runtime", "Agent_Assistant.tooling", "Agent_Assistant.llm_clients"]
+package-dir = {"Agent_Assistant" = "."}
+
+[tool.setuptools.package-data]
+Agent_Assistant = ["skills/*/SKILL.md"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 100
@@ -24,3 +46,4 @@ select = ["E", "F", "I", "UP"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
+exclude = ["tests/", "examples/", "build/"]

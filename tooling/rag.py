@@ -6,6 +6,8 @@ from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
+from Agent_Assistant.tooling.filesystem import iter_files, resolve_in_workspace
+
 TEXT_EXTENSIONS = {
     ".md",
     ".txt",
@@ -36,6 +38,7 @@ class RagHit:
     path: str
     score: float
     snippet: str
+    line: int = 1
 
 
 def tokenize(text: str) -> list[str]:
@@ -43,7 +46,8 @@ def tokenize(text: str) -> list[str]:
 
 
 def _safe_read(path: Path, max_bytes: int) -> str:
-    raw = path.read_bytes()[:max_bytes]
+    with path.open("rb") as handle:
+        raw = handle.read(max_bytes)
     return raw.decode("utf-8", errors="replace")
 
 
@@ -54,30 +58,44 @@ class LocalRagIndex:
         self.max_bytes = max_bytes
         self.documents: list[RagDocument] = []
         self.idf: dict[str, float] = {}
+        self._fingerprint: list[tuple[str, int, int]] = []
+        self._cache: dict[str, tuple[tuple[int, int], RagDocument]] = {}
 
     def build(self) -> None:
         docs: list[RagDocument] = []
-        for path in self.workspace.rglob("*"):
+        fingerprint: list[tuple[str, int, int]] = []
+        updated: dict[str, tuple[tuple[int, int], RagDocument]] = {}
+        for path in iter_files(self.workspace):
             if len(docs) >= self.max_files:
                 break
-            if any(part in SKIP_DIRS for part in path.relative_to(self.workspace).parts):
-                continue
-            if not path.is_file() or path.suffix.lower() not in TEXT_EXTENSIONS:
+            if path.suffix.lower() not in TEXT_EXTENSIONS:
                 continue
             try:
-                text = _safe_read(path, self.max_bytes)
-            except OSError:
+                path = resolve_in_workspace(self.workspace, str(path.relative_to(self.workspace)))
+                stat = path.stat()
+                key = str(path.relative_to(self.workspace))
+                stamp = (stat.st_mtime_ns, stat.st_size)
+                fingerprint.append((key, *stamp))
+                cached = self._cache.get(key)
+                if cached and cached[0] == stamp:
+                    doc = cached[1]
+                else:
+                    text = _safe_read(path, self.max_bytes)
+                    doc = RagDocument(key, text, Counter(tokenize(text)))
+                if doc.tokens:
+                    docs.append(doc)
+                    updated[key] = (stamp, doc)
+            except (OSError, ValueError):
                 continue
-            tokens = Counter(tokenize(text))
-            if not tokens:
-                continue
-            docs.append(RagDocument(str(path.relative_to(self.workspace)), text, tokens))
+        if fingerprint == self._fingerprint:
+            return
+        self._fingerprint = fingerprint
+        self._cache = updated
         self.documents = docs
         self.idf = self._build_idf(docs)
 
     def search(self, query: str, top_k: int = 5) -> list[RagHit]:
-        if not self.documents:
-            self.build()
+        self.build()
         query_tokens = Counter(tokenize(query))
         if not query_tokens:
             return []
@@ -86,7 +104,12 @@ class LocalRagIndex:
             score = self._cosine(query_tokens, doc.tokens)
             if score <= 0:
                 continue
-            scored.append(RagHit(doc.path, score, self._snippet(doc.text, query_tokens)))
+            positions = [
+                doc.text.lower().find(t) for t in query_tokens if doc.text.lower().find(t) >= 0
+            ]
+            position = min(positions) if positions else 0
+            line = doc.text[:position].count("\n") + 1
+            scored.append(RagHit(doc.path, score, self._snippet(doc.text, query_tokens), line))
         scored.sort(key=lambda hit: hit.score, reverse=True)
         return scored[:top_k]
 
