@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -26,7 +26,7 @@ CLIENT_DISCONNECTED_ERRORS = (ConnectionError, BrokenPipeError)
 
 @dataclass
 class StreamingResult:
-    events: Any
+    events: AsyncIterator[dict[str, Any]]
 
 
 class JsonRpcServer:
@@ -35,6 +35,7 @@ class JsonRpcServer:
         self.port = port
         self.handlers: dict[str, CommandHandler] = {}
         self.server: asyncio.AbstractServer | None = None
+        self.connections: set[asyncio.Task[Any]] = set()
 
     def register(self, method: str, handler: CommandHandler) -> None:
         self.handlers[method] = handler
@@ -55,25 +56,51 @@ class JsonRpcServer:
         async with self.server:
             await self.server.serve_forever()
 
+    async def aclose(self) -> None:
+        if self.server:
+            self.server.close()
+            await self.server.wait_closed()
+        tasks = list(self.connections)
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+
     async def handle_connection(
-        self,
-        reader: asyncio.StreamReader,
-        writer: asyncio.StreamWriter,
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
+        owner = asyncio.current_task()
+        if owner:
+            self.connections.add(owner)
+        processing: asyncio.Task[None] | None = None
+        disconnected: asyncio.Task[bytes] | None = None
         try:
-            while True:
-                line = await reader.readline()
-                if not line:
-                    return
-                await self.handle_line(line, writer)
-        except CLIENT_DISCONNECTED_ERRORS:
-            return
+            line = await asyncio.wait_for(reader.readline(), 15)
+            if not line:
+                return
+            processing = asyncio.create_task(self.handle_line(line, writer))
+            # One request per connection. Approvals arrive on separate connections.
+            # Detect EOF even while the model or approval future is blocked.
+            disconnected = asyncio.create_task(reader.read(1))
+            done, _ = await asyncio.wait(
+                {processing, disconnected}, return_when=asyncio.FIRST_COMPLETED
+            )
+            if disconnected in done:
+                processing.cancel()
+            await asyncio.gather(processing, return_exceptions=True)
+        except (ConnectionError, TimeoutError, ValueError):
+            pass
         finally:
+            tasks = [t for t in (processing, disconnected) if t is not None]
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
             writer.close()
             try:
                 await writer.wait_closed()
-            except CLIENT_DISCONNECTED_ERRORS:
+            except ConnectionError:
                 pass
+            if owner:
+                self.connections.discard(owner)
 
     async def handle_line(self, line: bytes, writer: asyncio.StreamWriter) -> None:
         request_id: str | int | None = None
@@ -86,9 +113,14 @@ class JsonRpcServer:
                 raise ProtocolError(METHOD_NOT_FOUND, f"Method not found: {request.method}")
             result = await handler(request.params)
             if isinstance(result, StreamingResult):
-                async for event in result.events:
-                    writer.write(json.dumps(event, ensure_ascii=False).encode("utf-8") + b"\n")
-                    await writer.drain()
+                try:
+                    async for event in result.events:
+                        writer.write(json.dumps(event, ensure_ascii=False).encode("utf-8") + b"\n")
+                        await writer.drain()
+                finally:
+                    close = getattr(result.events, "aclose", None)
+                    if close:
+                        await close()
                 return
             result_data = result.model_dump() if isinstance(result, BaseModel) else result
             await self.send(writer, JsonRpcSuccess(id=request.id, result=result_data))
@@ -127,18 +159,22 @@ class JsonRpcClient:
         request = JsonRpcRequest(id="1", method=method, params=params)
         writer.write(request.model_dump_json().encode("utf-8") + b"\n")
         await writer.drain()
-        line = await reader.readline()
-        writer.close()
-        await writer.wait_closed()
+        try:
+            line = await reader.readline()
+        finally:
+            writer.close()
+            await writer.wait_closed()
         if not line:
             raise RuntimeError("no response from core")
         response = json.loads(line)
-        if "error" in response:
+        if isinstance(response.get("error"), dict):
             error = response["error"]
             raise RuntimeError(f"[{error.get('code')}] {error.get('message')}: {error.get('data')}")
         return response.get("result")
 
-    async def stream(self, method: str, params: dict[str, Any]) -> Any:
+    async def stream(
+        self, method: str, params: dict[str, Any]
+    ) -> AsyncGenerator[dict[str, Any], None]:
         reader, writer = await asyncio.open_connection(self.host, self.port, limit=MAX_FRAME_BYTES)
         request = JsonRpcRequest(id="1", method=method, params=params)
         writer.write(request.model_dump_json().encode("utf-8") + b"\n")
@@ -149,7 +185,7 @@ class JsonRpcClient:
                 if not line:
                     raise RuntimeError("stream closed before final response")
                 response = json.loads(line)
-                if "error" in response:
+                if isinstance(response.get("error"), dict):
                     error = response["error"]
                     raise RuntimeError(
                         f"[{error.get('code')}] {error.get('message')}: {error.get('data')}"

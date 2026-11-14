@@ -15,3 +15,4 @@ class CliState:
     raw_json: bool = False
     session_id: str = field(default_factory=lambda: uuid4().hex[:12])
     stream: bool = True
+    skill: str | None = None

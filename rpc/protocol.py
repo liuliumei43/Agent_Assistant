@@ -46,13 +46,22 @@ class PingParams(BaseModel):
 
 class AgentRunParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    goal: str
+    goal: str = Field(min_length=1, max_length=100_000)
     workspace: str = "."
     max_steps: int = Field(default=8, ge=1, le=30)
     auto_approve: bool = False
     enable_rag: bool = True
     context_max_chars: int = Field(default=24_000, ge=4_000, le=200_000)
     verbose: bool = False
+    session_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{1,128}$")
+    stream_llm: bool = True
+    skill: Literal["repo-review"] | None = None
+
+
+class ApprovalParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    approval_id: str = Field(min_length=20, max_length=128)
+    approved: bool
 
 
 class ProtocolError(ValueError):
@@ -80,6 +89,8 @@ def validate_params(method: str, params: dict[str, Any]) -> BaseModel:
             return PingParams.model_validate(params)
         if method in {"agent.run", "agent.run_stream"}:
             return AgentRunParams.model_validate(params)
+        if method == "approval.respond":
+            return ApprovalParams.model_validate(params)
     except ValidationError as exc:
         raise ProtocolError(INVALID_PARAMS, "Invalid params", str(exc)) from exc
     raise ProtocolError(METHOD_NOT_FOUND, f"Method not found: {method}")
